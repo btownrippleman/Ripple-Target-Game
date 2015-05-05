@@ -75,10 +75,8 @@ local function initApp() -- app initialization, a lot of the code repeated in ta
 
 end
 local  function myTouchListener(event) -- called at every tap, makes sure weapon, i.e. guitar is propery pointed and that
-   --bullets go in the right direction
-
-   weapon.rotation = objectRotation(event, weapon)
-   if event.phase == "ended" and bullet == nil then
+    weapon.rotation = objectRotation(event, weapon)
+    if event.phase == "ended" and bullet == nil then
     bullet =  bulletFire(event,weapon) end
 
 end
@@ -139,18 +137,18 @@ end
 
 function destroyTarget()
   if target.shotAt == false then
-     misses = misses +1; scoreTextRenew() end
+     misses = misses +1 end
   target:removeSelf(); target = nil;
 end
 
-function bulletMiss()
-  if target~= nil then target.shotAt = true end
-  misses = misses +1; destroyBullet(); scoreTextRenew()
+function bulletMiss() -- if a bullet
+  if bullet ~= nil and target~= nil then target.shotAt = true end
+  misses = misses +1; destroyBullet();
 end
 
 
 
-function explosionMake(x,y)
+function explosionMake(x,y)  -- used easing.outExpo, increased the fastest, i.e. being an exponential function.
   local rand = math.ceil(math.random(7))
   local explosion = display.newImageRect("boom"..rand..".png",22,22);
   explosion.x = x;
@@ -160,7 +158,7 @@ function explosionMake(x,y)
 
 end
 
-local function withinRange(range, obj1, obj2)
+local function withinRange(range, obj1, obj2) -- used to find if objs are in range return a false or true
 
 
          if ( math.abs(obj1.x-obj2.x) < range and math.abs(obj1.y-obj2.y)< range )
@@ -171,7 +169,9 @@ local function withinRange(range, obj1, obj2)
  end
 
 local function newFrame() --this function corresponds to the eventListener for Runtime:addEventListener()
-        scoreTextRenew();
+
+        scoreTextRenew(); -- call this to make sure that it's in front. I would normally put it somewhere else
+                        -- but for not it's computationally negligible
        if target == nil then targetMake() end
 
        if bullet ~= nil and target ~= nil then
@@ -194,6 +194,6 @@ end
 
 
 
-initApp()
- bg:addEventListener( "touch", myTouchListener )
+initApp() -- intialize vars at very end except for listeners.
+bg:addEventListener( "touch", myTouchListener )
 Runtime:addEventListener("enterFrame", newFrame )
