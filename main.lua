@@ -12,19 +12,15 @@ HEIGHT = display.contentHeight
 local bg = display.newRect( 0, 0, WIDTH*2, HEIGHT*2)
 bg:setFillColor(0)
 local target = display.newGroup()
-local ear = display.newImageRect("ear.png",45,45)
+local rect
 local weapon = display.newImageRect( "guitar.png", 100, 50 )
-local bullet
-local firingDirection
+--local bullet
 local explosion
-local bulletFired = false
 local hits=0
 local misses=0
-local random = math.random()
-local scoreText = display.newText("hits: " .. hits .. " misses: " .. misses .. " %hits :0", 180,100,"",18)
+local scoreText = display.newText("hits:0 misses:0 %hits :0", 160,150,"",18)
 
-
-local function rectArrayMaker(numOfCopies,distance,centerX,centerY,spacePercentage)
+local function rectArrayMaker(numOfCopies,distance,centerX,centerY,spacePercentage) --- this makes an array of rects centered around target
   rectArray = {}
   local returnGroup = display.newGroup()
 
@@ -43,45 +39,51 @@ local function rectArrayMaker(numOfCopies,distance,centerX,centerY,spacePercenta
       end
   return returnGroup
 end
-local function initApp()
 
-    target.speed =4
+function targetMake() -- this is called every time a target is destroyed either by a bullet or going off screen
+  local rect = display.newRect(0,0,45,45) -- I initially used this code for a rotating ear, but I used a rect instead
+  rect:setFillColor(0,0,1)
+  target = display.newGroup()  -- ear = display.newImageRect("ear.png",45,45)
+  target.shotAt = false -- this is used denote whether the target has been shot and made true on bulletFire
+  target.speed =4
+  target.x = 0 --display.contentCenterX
+  target.y =  math.random(HEIGHT)
+  target:insert(rect)
+  local targetSurround  = rectArrayMaker(10,45,target.x,target.y,.6) -- this a subgroup of target
+  target:insert(targetSurround)
+  targetSurround.x = 0 - target.x
+  targetSurround.y = 0 - target.y
+  --target.x = target.x +10
+  target.xScale = .6
+  target.yScale = .6
+  target.radius = 45*.6
+  local transitionTime = 1000
+  if hits~= 0 and misses~= 0 then transitionTime = 500 +math.random()*1000*misses/hits
+  else transitionTime = 1500 end
+  transition.to(target, {time = transitionTime , rotation =360*(WIDTH/(2*math.pi*45)), alpha = 1, x = WIDTH,  onComplete =  destroyTarget })
+ end
 
-    target.x = 0 --display.contentCenterX
-    target.y =  45
-    target:insert(ear)
-    targetSurround  = rectArrayMaker(10,45,target.x,target.y,.6)
-
-    target:insert(targetSurround)
-    targetSurround.x = 0 - target.x
-    targetSurround.y = 0 - target.y
-    --target.x = target.x +10
-    target.xScale = .6
-    target.yScale = .6
-    target.radius = 45*.6
+local function initApp() -- app initialization, a lot of the code repeated in targetMake()
 
 
     weapon.rotation = -90
     weapon.x = display.contentCenterX
     weapon.y = HEIGHT-45
 
+    targetMake()
 
 
 end
-local function myTouchListener(event)
-
-
-
+local  function myTouchListener(event) -- called at every tap, makes sure weapon, i.e. guitar is propery pointed and that
+   --bullets go in the right direction
 
    weapon.rotation = objectRotation(event, weapon)
-   firingDirection = unitVector(event,weapon)
-   if event.phase == "ended" and (bullet == nil or bulletFired == false or bullet.y <0 or bullet.x <0 or bullet.x > 320  )
-   then bulletFire(event,weapon,25) end
-
+   if event.phase == "ended" and bullet == nil then
+    bullet =  bulletFire(event,weapon) end
 
 end
 
-function objectRotation(v1,v2)
+function objectRotation(v1,v2) --  function used in rotating the guitar
     --dotProduct of v1 and (0,1) over ||v1||  return in degrees
   if v1.x > v2.x then
     return  90- (360/(2*3.14159))*math.acos((v1.y-v2.y)/(math.sqrt((v1.x-v2.x)*(v1.x-v2.x) + (v1.y-v2.y)*(v1.y-v2.y))))
@@ -90,107 +92,101 @@ function objectRotation(v1,v2)
   end
 end
 
-function unitVector(event,weapon)
+
+   --designed to get unit vetor values if necessary.
+function unitVector(event,obj)   -- this just give me the direction of the vector from the tap to the weapon, i.e. guitar
   local v = {}
   local u = {}
-      v[1] = event.x - weapon.x
-      v[2] = event.y - weapon.y
+      v[1] = event.x - obj.x
+      v[2] = event.y - obj.y
   local length =  math.sqrt(math.pow(v[1],2)+math.pow(v[2],2))
   u[1] = v[1]/length; u[2] = v[2]/length;
   return  u
-
 end
 
-local function vectorLength(event,weapon)
+local function vectorLength(event,weapon)-- returns distance between vectors
 
   return  math.sqrt(math.pow(event.x-weapon.x,2)+math.pow(event.y-weapon.y,2))
 
 end
 
 
-function bulletFire(event,weapon,speed)
+
+function destroyExplosion() --  would have used a generic destroyObject(obj) construction for all these but the onComplete listener
+  explosion:removeSelf(); explosion = nil -- in transition.to(explosion, {...}) didn't like it
+end
+
+
+function destroyBullet() -- same goes for what is said above, but I try to call the destroy function only appropriate times
+   if bullet~= nil then bullet:removeSelf(); bullet = nil;  end
+end
+
+function bulletFire(event,weapon) -- called by myTouchListener from the tappings on the background.
     local u = unitVector(event,weapon); local length = vectorLength(event,weapon)
-    bullet = display.newImageRect("note.png", 44, 44) --1.2*length*u[1], 1.2*length*u[2])
-    bullet.x = weapon.x + 100*u[1]; bullet.y = weapon.y + 100*u[2] -- obullets will spawn at about 100 units from weapons base
-    bullet.rotation = objectRotation(event,weapon)+90
-    bullet.speed = speed
-    scoreText.text = "hits: " .. hits .. " misses: " .. misses .. " %hits :0" 
-    bulletFired = true
+    local localbullet = display.newImageRect("note.png", 44, 44) --1.2*length*u[1], 1.2*length*u[2])
+    localbullet.x = weapon.x + 100*u[1]; localbullet.y = weapon.y + 100*u[2] -- bullets will spawn at about 100 units from weapons base
+    localbullet.rotation = objectRotation(event,weapon)+90
+    transition.to(localbullet, {time = 150, alpha = 1,x = event.x,y = event.y,  onComplete = bulletMiss })
+     -- bring the text to the fron tof the screen
+    -- I would have used transition to but I didn't like how the object stopped at the top of the screen'
 
+    return localbullet -- returns a value as req'd in the module
+end
+local function scoreTextRenew() --  call this at every frame of newFrame to make sure the text is in the Front.
+    scoreText.text = "hits: " .. hits .. " misses: " .. misses .. " %hits :"..math.round(100*hits/(hits+misses))
+    scoreText:toFront()
 end
 
-local function rollingMovement(target, speed, pathTravelled, targetRadius) -- used only for circular objects, default speed equals one
-        --this fcn is dependent on the screen variable WIDTH
-  if speed == nil then speed = 1 end
-
-
-  target.rotation = target.rotation + speed*(pathTravelled/(2*math.pi*targetRadius))
-  target.x = target.x +speed
-
+function destroyTarget()
+  if target.shotAt == false then
+     misses = misses +1; scoreTextRenew() end
+  target:removeSelf(); target = nil;
 end
 
-local function restart(target)
-
-    if target.x > display.contentWidth then target.x = 0 end
-
+function bulletMiss()
+  if target~= nil then target.shotAt = true end
+  misses = misses +1; destroyBullet(); scoreTextRenew()
 end
 
-function placeBackBullet()
 
-  bullet.x = -100; bullet.y = -100
 
-end
-
-function placeBackTarget()
-
-  target.x = -20
-
-end
-
-function explosionMake()
-  explosion = nil
-    local x,y = target.x, target.y
+function explosionMake(x,y)
   local rand = math.ceil(math.random(7))
-   explosion = display.newImageRect("boom"..rand..".png",22,22,target.x,target.y);
-  if explosion ~= nil then explosion.x =target.x; explosion.y = target.y end
-
-   random = math.random()
-
+  local explosion = display.newImageRect("boom"..rand..".png",22,22);
+  explosion.x = x;
+  explosion.y = y;
+  local explSize = 15+ math.random()*math.random()*math.random()*25
+  transition.to(explosion,{ time=1000, xScale=explSize, yScale = explSize, alpha = 0, transition=easing.outExpo })
 
 end
 
-function withinRange(range)
+local function withinRange(range, obj1, obj2)
 
 
-        -- if ( math.abs(object1.x-object2.x) < range and math.abs(object1.y-object2.y)< range )
-         if ( math.abs(bullet.x-target.x) < range and math.abs(bullet.y-target.y)< range )
-
-                then return true end
-
-
+         if ( math.abs(obj1.x-obj2.x) < range and math.abs(obj1.y-obj2.y)< range )
+            then return true
+         else
+            return false
+         end
  end
 
 local function newFrame() --this function corresponds to the eventListener for Runtime:addEventListener()
+        scoreTextRenew();
+       if target == nil then targetMake() end
 
-      rollingMovement(target, target.speed, WIDTH, target.radius)
+       if bullet ~= nil and target ~= nil then
+          if withinRange(55,bullet,target)
+          then
+            explosionMake(target.x,target.y);
+            transition.cancel(target,bullet,explosion);
+            destroyBullet();
+            target.shotAt = true;
+            destroyTarget();
+            hits = hits+1;
+          end
+       end
 
-      if target.x > WIDTH then target.x = 0; target.speed = 2+ math.random(5) end
-      if bulletFired == true then
-        bullet.x = bullet.x + firingDirection[1]*bullet.speed
-        bullet.y = bullet.y + firingDirection[2]*bullet.speed
-      end
 
-      if bullet~=nil and bulletFired == true and (bullet.y <0 or bullet.x <0 or bullet.x > 320)
-      then placeBackBullet(); misses = misses +1 end
-
-      if bullet~=nil and bulletFired == true and withinRange(55)
-      then explosionMake();    placeBackTarget(); placeBackBullet() hits = hits+1;  target.speed = 25*math.random()*math.random() end
-
-      if explosion ~= nil and explosion.alpha > 0 then
-        explosion.alpha = explosion.alpha *explosion.alpha *explosion.alpha *explosion.alpha * .995
-        explosion.yScale = explosion.yScale*explosion.yScale*explosion.yScale*explosion.yScale*1.01
-        explosion.xScale = explosion.xScale*explosion.xScale*explosion.xScale*explosion.xScale*1.01
-      end
 
 
 
